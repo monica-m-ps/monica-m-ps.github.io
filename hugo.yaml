@@ -1,5 +1,5 @@
 # Hugo configuration file
-title: My Site
+title: 
 
 # import hextra as module
 module:
@@ -45,7 +45,7 @@ menu:
 params:
   navbar:
     displayTitle: true
-    displayLogo: false
+    displayLogo: true
 
   footer:
     displayCopyright: false

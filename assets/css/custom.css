@@ -1,0 +1,12 @@
+
+.hx-max-w-screen-xl {
+  max-width: 100% !important;
+}
+
+img.hx-block.dark\:hx-hidden {
+    width: 100px !important;
+}
+
+.hx-px-6 {
+max-width: 100%;
+  }
