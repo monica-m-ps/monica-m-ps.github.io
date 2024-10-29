@@ -1,0 +1,14 @@
+name: Check invalid characters
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  check-invalid-chars:
+    runs-on: tools-runner
+    name: Check for Windows invalid characters
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - uses: ls-lint/action@v2.2.0

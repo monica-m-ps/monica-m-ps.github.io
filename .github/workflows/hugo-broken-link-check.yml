@@ -1,0 +1,72 @@
+name: Hugo broken link check
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  broken-link-check:
+    runs-on: tools-runner
+    container:
+      image: golang:1.21.0-bullseye
+    name: Check for broken links
+    steps:
+    - name: Install Muffet
+      run: |
+        go install github.com/raviqqe/muffet/v2@latest
+      shell: bash
+    - uses: actions/checkout@v4
+      name: Checkout Docs Repository
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-node@v4
+      name: Get NPM (from Cache if available)
+      with:
+        node-version: '21.7.3'
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+    - run: |
+        npm ci
+        npm ls
+      name: NPM ci (Docsy dependencies)
+    - name: Start Hugo Server
+      timeout-minutes: 3
+      run: |
+        touch ${RUNNER_TEMP}/build.output
+        echo ":hourglass: Waiting for Hugo Server to build and start" >> "$GITHUB_STEP_SUMMARY"
+        # This is a workaround for:
+        # ERROR Failed to read Git log: fatal: detected dubious ownership in repository at '/__w/docs/docs'
+        # which probably is created by actions/checkout using a different user than the one starting up hugo
+        # There's probably a cleaner solution but this should do it for now
+        /usr/bin/git config --global --add safe.directory /__w/docs/docs
+        npm run serve-for-checker >>${RUNNER_TEMP}/build.output 2>&1 &
+        sleep 1
+        ( tail -f -n0 ${RUNNER_TEMP}/build.output & ) | grep -q "Built in"
+        sleep 1
+        echo ":white_check_mark: Hugo has finished building the docs website." >> "$GITHUB_STEP_SUMMARY"
+      shell: bash
+    - name: Check For Any Broken Links
+      timeout-minutes: 5
+      run: |
+        sleep 1
+        echo ":hourglass: Starting checks for broken links." >> "$GITHUB_STEP_SUMMARY"
+        echo '```\n' >> "$GITHUB_STEP_SUMMARY"
+        muffet http://localhost:1313/en -e ".*.js.*" -e ".*.gif.*" -e ".*png.*" -e ".*.css.*" -e ".*.icon.*" -e ".*.jpg.*" -e ".*/_print/.*" --ignore-fragments -i ".*localhost.*" --skip-tls-verification -c 10 >>"$GITHUB_STEP_SUMMARY" 2>&1
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        LINK_CHECKER_RESULT=$?
+        if [[ "$LINK_CHECKER_RESULT" -eq 0 ]]; then
+          echo ":smiley: The link checker didn't find any broken links." >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo ":cry: The link checker has failed, check the logs above for errors which will help you identify which links are broken." >> "$GITHUB_STEP_SUMMARY"
+        fi
+        echo ":white_check_mark: Links have been checked." >> "$GITHUB_STEP_SUMMARY"
+        exit $LINK_CHECKER_RESULT
+      shell: bash
+    - name: Display failure message and fetch logs
+      if: failure()
+      run: |
+        echo ':poop: Issues found. Check the logs below and above for possible reasons.' >> "$GITHUB_STEP_SUMMARY"
+        echo '```\n' >> "$GITHUB_STEP_SUMMARY"
+        cat ${RUNNER_TEMP}/build.output >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+      shell: bash
+
